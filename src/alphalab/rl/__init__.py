@@ -15,6 +15,7 @@ from alphalab.rl.env import (
     ScoreOutcome,
     Scorer,
 )
+from alphalab.rl.settings import RLSettings
 from alphalab.rl.tokens import (
     BuilderState,
     InvalidActionError,
@@ -29,6 +30,7 @@ __all__ = [
     "FitnessScorer",
     "InvalidActionError",
     "PoolGainScorer",
+    "RLSettings",
     "RPNBuilder",
     "ScoreOutcome",
     "Scorer",

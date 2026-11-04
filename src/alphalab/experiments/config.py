@@ -41,6 +41,7 @@ from alphalab.data.synthetic import SyntheticSpec
 from alphalab.errors import ConfigError
 from alphalab.evaluation.evaluator import EvaluationSettings
 from alphalab.expressions.grammar import Grammar
+from alphalab.rl.settings import RLSettings
 from alphalab.search.genetic import GPSettings
 
 SCHEMA_VERSION = 1
@@ -103,7 +104,7 @@ class ExperimentConfig:
     max_evaluations: int = 500
     selection: SelectionConfig = field(default_factory=SelectionConfig)
     gp: GPSettings = field(default_factory=GPSettings)
-    rl: Mapping[str, Any] = field(default_factory=dict)
+    rl: RLSettings = field(default_factory=RLSettings)
     report: ReportConfig = field(default_factory=ReportConfig)
 
     def to_dict(self) -> dict[str, Any]:
@@ -126,7 +127,7 @@ class ExperimentConfig:
             "budget": {"max_evaluations": self.max_evaluations},
             "selection": dataclasses.asdict(self.selection),
             "gp": dataclasses.asdict(self.gp),
-            "rl": dict(self.rl),
+            "rl": dataclasses.asdict(self.rl),
             "report": dataclasses.asdict(self.report),
         }
 
@@ -135,12 +136,9 @@ class ExperimentConfig:
         canonical = json.dumps(self.to_dict(), sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode()).hexdigest()
 
-    def rl_settings(self) -> Any:
-        """``RLSettings`` built from the ``[rl]`` section (imports torch lazily)."""
-        from alphalab.rl.trainer import RLSettings
-
-        values = {"seed": self.seed, **dict(self.rl)}
-        return _build(RLSettings, values, "rl")
+    def rl_settings(self) -> RLSettings:
+        """Validated ``[rl]`` settings (the seed defaults to the top-level seed)."""
+        return self.rl
 
 
 def _build(cls: type, values: Mapping[str, Any], section: str) -> Any:
@@ -161,20 +159,6 @@ def _section(raw: Mapping[str, Any], key: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ConfigError(f"[{key}] must be a table")
     return dict(value)
-
-
-def _validate_rl_keys(rl: Mapping[str, Any]) -> None:
-    # Validated without importing torch: the field names are mirrored here and
-    # checked against RLSettings in tests.
-    allowed = {
-        "max_tokens", "embed_dim", "hidden_dim", "num_layers", "learning_rate",
-        "episodes_per_update", "entropy_coef", "value_coef", "grad_clip", "reward_mode",
-        "diversity_weight", "pool_capacity", "max_updates", "stall_updates",
-        "checkpoint_every", "seed", "device", "top_k",
-    }  # fmt: skip
-    unknown = sorted(set(rl) - allowed)
-    if unknown:
-        raise ConfigError(f"[rl] unknown keys {unknown}; allowed: {sorted(allowed)}")
 
 
 def config_from_dict(raw: Mapping[str, Any]) -> ExperimentConfig:
@@ -219,6 +203,11 @@ def config_from_dict(raw: Mapping[str, Any]) -> ExperimentConfig:
     by_dates = split.valid_start is not None or split.test_start is not None
     if by_dates and (split.valid_start is None or split.test_start is None):
         raise ConfigError("[split] valid_start and test_start must be given together")
+    split_raw = _section(raw, "split")
+    if by_dates and ({"train_fraction", "valid_fraction"} & set(split_raw)):
+        raise ConfigError("[split] give either fractions or dates, not both")
+    if by_dates:
+        split = dataclasses.replace(split, train_fraction=None, valid_fraction=None)
     if not by_dates and (split.train_fraction is None or split.valid_fraction is None):
         raise ConfigError("[split] give train_fraction and valid_fraction, or both dates")
 
@@ -234,14 +223,19 @@ def config_from_dict(raw: Mapping[str, Any]) -> ExperimentConfig:
     if set(budget) - {"max_evaluations"}:
         raise ConfigError(f"[budget] unknown keys {sorted(set(budget) - {'max_evaluations'})}")
     max_evaluations = budget.get("max_evaluations", 500)
-    if not isinstance(max_evaluations, int) or max_evaluations < 1:
+    if (
+        isinstance(max_evaluations, bool)
+        or not isinstance(max_evaluations, int)
+        or max_evaluations < 1
+    ):
         raise ConfigError("[budget] max_evaluations must be a positive integer")
     selection = _build(SelectionConfig, _section(raw, "selection"), "selection")
     if selection.max_factors < 1 or selection.candidates < selection.max_factors:
         raise ConfigError("[selection] need 1 <= max_factors <= candidates")
+    if not 0 < selection.max_abs_correlation <= 1:
+        raise ConfigError("[selection] max_abs_correlation must lie in (0, 1]")
     gp = _build(GPSettings, {"seed": seed, **_section(raw, "gp")}, "gp")
-    rl = _section(raw, "rl")
-    _validate_rl_keys(rl)
+    rl = _build(RLSettings, {"seed": seed, **_section(raw, "rl")}, "rl")
     report = _build(ReportConfig, _section(raw, "report"), "report")
     return ExperimentConfig(
         name=name.strip(),
@@ -254,7 +248,7 @@ def config_from_dict(raw: Mapping[str, Any]) -> ExperimentConfig:
         max_evaluations=max_evaluations,
         selection=selection,
         gp=gp,
-        rl={"seed": seed, **rl},
+        rl=rl,
         report=report,
     )
 

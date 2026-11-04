@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +9,6 @@ import pytest
 
 from alphalab.errors import ConfigError
 from alphalab.experiments import config_from_dict, derive_seed, load_config
-from alphalab.experiments.config import _validate_rl_keys
 
 CONFIGS = Path(__file__).resolve().parents[2] / "configs"
 
@@ -36,7 +34,7 @@ def test_synthetic_configs_are_mutually_comparable() -> None:
 
 def test_defaults_and_seed_propagation() -> None:
     config = config_from_dict(_base(method="gp"))
-    assert config.gp.seed == 3 and config.rl["seed"] == 3
+    assert config.gp.seed == 3 and config.rl.seed == 3
     assert config.split.horizon == 1 and config.max_evaluations == 500
 
 
@@ -66,6 +64,14 @@ def test_hash_changes_with_any_setting() -> None:
         ({"gp": {"population_size": 1}}, r"\[gp\] invalid"),
         ({"rl": {"learning_rat": 0.1}}, r"\[rl\] unknown"),
         ({"evaluation": {"metric": "sharpe"}}, r"\[evaluation\] invalid"),
+        ({"rl": {"reward_mode": "sharpe"}}, r"\[rl\] invalid"),
+        ({"rl": {"learning_rate": -1.0}}, r"\[rl\] invalid"),
+        ({"budget": {"max_evaluations": True}}, "max_evaluations"),
+        ({"selection": {"max_abs_correlation": 0.0}}, "max_abs_correlation"),
+        (
+            {"split": {"valid_start": "2020", "test_start": "2021", "train_fraction": 0.5}},
+            "not both",
+        ),
     ],
 )
 def test_invalid_configs_are_rejected(overrides: dict[str, Any], message: str) -> None:
@@ -89,12 +95,9 @@ def test_load_config_errors_and_relative_paths(tmp_path: Path) -> None:
     assert load_config(good).data.path == str((tmp_path / "bars.csv").resolve())
 
 
-def test_rl_key_mirror_matches_rl_settings() -> None:
-    torch_trainer = pytest.importorskip("alphalab.rl.trainer")
-    names = [f.name for f in dataclasses.fields(torch_trainer.RLSettings)]
-    _validate_rl_keys(dict.fromkeys(names, 0))
+def test_rl_settings_are_validated_without_torch() -> None:
     config = config_from_dict(_base(method="rl", rl={"hidden_dim": 16}))
-    assert config.rl_settings().hidden_dim == 16
+    assert config.rl_settings().hidden_dim == 16 and config.rl_settings().seed == 3
 
 
 def test_derived_seeds_are_stable_and_distinct() -> None:

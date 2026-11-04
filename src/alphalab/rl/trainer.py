@@ -31,7 +31,7 @@ import math
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 
@@ -49,65 +49,13 @@ from alphalab.evaluation.export import to_json_text
 from alphalab.expressions.grammar import Grammar
 from alphalab.rl.env import ExpressionEnv, FitnessScorer, PoolGainScorer, ScoreOutcome, Scorer
 from alphalab.rl.policy import RecurrentPolicy, masked_logits
+from alphalab.rl.settings import RLSettings
 from alphalab.search.base import SearchHistory, SearchResult
+
+__all__ = ["Episode", "PolicyGradientTrainer", "RLSettings", "RunningMeanStd", "UpdateMetrics"]
 
 CHECKPOINT_FORMAT = 1
 CHECKPOINT_NAME = "rl_checkpoint.pt"
-RewardMode = Literal["fitness", "pool_gain"]
-
-
-@dataclass(frozen=True)
-class RLSettings:
-    """Hyperparameters of the policy-gradient search.
-
-    Attributes:
-        max_tokens: Maximum RPN tokens per expression.
-        embed_dim: Token embedding width.
-        hidden_dim: GRU hidden width.
-        num_layers: GRU layers.
-        learning_rate: Adam learning rate.
-        episodes_per_update: Episodes collected per gradient step.
-        entropy_coef: Entropy bonus weight.
-        value_coef: Value-loss weight.
-        grad_clip: Global gradient-norm clip.
-        reward_mode: ``"fitness"`` or ``"pool_gain"`` (see :mod:`alphalab.rl.env`).
-        diversity_weight: Diversity penalty for ``"fitness"`` rewards.
-        pool_capacity: Pool size for ``"pool_gain"`` rewards.
-        max_updates: Optional limit on gradient steps; the budget normally stops training.
-        stall_updates: Stop after this many consecutive updates without a new
-            (budget-charged) expression, which signals policy collapse.
-        checkpoint_every: Updates between checkpoints (when a directory is set).
-        seed: Seed for initialization and sampling.
-        device: Torch device string; tests use ``"cpu"``.
-        top_k: Number of best records kept in the result.
-    """
-
-    max_tokens: int = 20
-    embed_dim: int = 32
-    hidden_dim: int = 64
-    num_layers: int = 1
-    learning_rate: float = 1e-3
-    episodes_per_update: int = 32
-    entropy_coef: float = 0.01
-    value_coef: float = 0.5
-    grad_clip: float = 1.0
-    reward_mode: RewardMode = "fitness"
-    diversity_weight: float = 0.0
-    pool_capacity: int = 10
-    max_updates: int | None = None
-    stall_updates: int = 50
-    checkpoint_every: int = 10
-    seed: int = 0
-    device: str = "cpu"
-    top_k: int = 20
-
-    def __post_init__(self) -> None:
-        if self.episodes_per_update < 1 or self.learning_rate <= 0:
-            raise ValueError("episodes_per_update must be >= 1 and learning_rate > 0")
-        if self.reward_mode not in ("fitness", "pool_gain"):
-            raise ValueError(f"unknown reward_mode {self.reward_mode!r}")
-        if self.stall_updates < 1 or self.checkpoint_every < 1:
-            raise ValueError("stall_updates and checkpoint_every must be >= 1")
 
 
 @dataclass

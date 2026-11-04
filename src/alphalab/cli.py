@@ -82,11 +82,6 @@ def _cmd_check_config(args: argparse.Namespace) -> int:
     from alphalab.experiments.config import load_config
 
     config = load_config(args.config)
-    if config.method == "rl":
-        try:
-            config.rl_settings()
-        except ImportError:
-            print("note: torch is not installed; RL settings were checked by name only")
     print(to_json_text({"config_hash": config.config_hash(), "config": config.to_dict()}))
     return 0
 
