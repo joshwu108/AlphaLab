@@ -147,3 +147,14 @@ def test_validation_selection_is_diverse_and_never_reads_test(strong_spec: Synth
     assert fitness == sorted(fitness, reverse=True)
     assert evaluator.access_summary()["scores_by_partition"]["test"] == 0  # type: ignore[index]
     assert evaluator.budget is not None and evaluator.budget.used == used
+
+
+def test_gp_stops_when_the_population_stops_producing_new_candidates(
+    strong_spec: SyntheticSpec,
+) -> None:
+    tiny = Grammar(features=("close",), operators=("neg", "abs", "delta"), windows=(2,), max_size=4)
+    result = GeneticProgramming(tiny, GPSettings(population_size=8, stall_generations=5)).run(
+        build_evaluator(strong_spec, budget=10_000)
+    )
+    assert result.stopped_reason.startswith("stalled")
+    assert result.budget["used"] < 50

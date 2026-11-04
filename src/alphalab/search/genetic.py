@@ -67,6 +67,10 @@ class GPSettings:
         diversity_weight: Weight of the correlation-with-elites penalty in
             tournament fitness; 0 disables it.
         max_generations: Optional hard limit; the budget normally stops the run.
+        stall_generations: Stop after this many consecutive generations that
+            charge no new candidate. Without it a converged population whose
+            offspring are all known (and therefore free) would never exhaust
+            the budget.
         seed: Seed for all random choices.
         top_k: Number of best records kept in the result.
     """
@@ -78,6 +82,7 @@ class GPSettings:
     elitism: int = 2
     diversity_weight: float = 0.0
     max_generations: int | None = None
+    stall_generations: int = 20
     seed: int = 0
     top_k: int = 20
 
@@ -92,6 +97,8 @@ class GPSettings:
             raise ValueError("elitism must lie in [0, population_size)")
         if self.diversity_weight < 0:
             raise ValueError("diversity_weight must be non-negative")
+        if self.stall_generations < 1:
+            raise ValueError("stall_generations must be at least 1")
 
 
 def _series_paths(node: Node) -> list[tuple[int, ...]]:
@@ -264,6 +271,7 @@ class GeneticProgramming:
         population: list[Node],
         rng: np.random.Generator,
         history: SearchHistory,
+        stall: int = 0,
     ) -> None:
         if self.checkpoint_path is None or evaluator.budget is None:
             return
@@ -273,6 +281,7 @@ class GeneticProgramming:
                 "method": self.method,
                 "identity": self._identity(evaluator),
                 "generation": generation,
+                "stall": stall,
                 "population": [n.canonical for n in population],
                 "rng": rng_state(rng),
                 "history": history.to_list(),
@@ -283,7 +292,7 @@ class GeneticProgramming:
 
     def _load(
         self, evaluator: FactorEvaluator
-    ) -> tuple[int, list[Node], np.random.Generator, SearchHistory]:
+    ) -> tuple[int, list[Node], np.random.Generator, SearchHistory, int]:
         assert self.checkpoint_path is not None
         data = read_checkpoint(self.checkpoint_path, method=self.method)
         # Compare through a JSON round trip: tuples in the live identity become lists on disk.
@@ -298,6 +307,7 @@ class GeneticProgramming:
             population,
             rng_from_state(data["rng"]),
             SearchHistory.from_list(data["history"]),
+            int(data.get("stall", 0)),
         )
 
     # -- main loop -----------------------------------------------------------
@@ -358,27 +368,33 @@ class GeneticProgramming:
         if resume:
             if self.checkpoint_path is None:
                 raise CheckpointError("resume requested but no checkpoint_path is configured")
-            generation, population, rng, history = self._load(evaluator)
+            generation, population, rng, history, stall = self._load(evaluator)
         else:
             rng = np.random.default_rng(self.settings.seed)
             history = SearchHistory()
             population = self._initial_population(rng)
             generation = 0
+            stall = 0
         stopped = "budget exhausted"
         while True:
             source = "init" if generation == 0 else "offspring"
             fitness: list[float] = []
+            charged_before = evaluator.budget.used
             try:
                 for node in population:
                     fitness.append(self._score(evaluator, node, history, generation, source))
             except BudgetExhaustedError:
                 break
             generation += 1
+            stall = 0 if evaluator.budget.used > charged_before else stall + 1
             population = self._next_generation(evaluator, population, fitness, rng)
             # The checkpoint holds the *unevaluated* next generation and the
             # generator state after producing it, so resuming replays exactly
             # the computation an uninterrupted run would perform.
-            self._save(evaluator, generation, population, rng, history)
+            self._save(evaluator, generation, population, rng, history, stall)
+            if stall >= self.settings.stall_generations:
+                stopped = f"stalled: no new candidate in {stall} generations"
+                break
             limit = self.settings.max_generations
             if limit is not None and generation >= limit:
                 stopped = "max_generations reached"
