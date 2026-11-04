@@ -1,0 +1,49 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core:
+    name: core tests without torch (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev,parquet]'
+      - name: lint
+        run: |
+          ruff check src tests examples benchmarks
+          ruff format --check src tests examples benchmarks
+      - name: type-check
+        run: mypy
+      - name: test (torch-dependent tests skip)
+        run: pytest -q --cov=alphalab --cov-report=term-missing
+
+  rl:
+    name: RL policy and trainer on CPU torch (py3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          # CPU wheel only; CI never trains on a GPU.
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+          pip install -e '.[dev,parquet,rl]'
+      - name: test
+        run: pytest -q

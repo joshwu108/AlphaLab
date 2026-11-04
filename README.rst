@@ -1,7 +1,4 @@
 AlphaLab
 ========
 
-Research repository.
-
-Public documentation is written in reStructuredText. Markdown files and
-planning documents are kept local and are ignored by Git.
+Research framework for symbolic alpha-factor discovery. Documentation is in progress.
