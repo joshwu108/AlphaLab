@@ -86,3 +86,8 @@ no_implicit_optional = true
 [[tool.mypy.overrides]]
 module = ["pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# torch is an optional extra; the torch-free CI job type-checks without it.
+module = ["torch", "torch.*"]
+ignore_missing_imports = true
