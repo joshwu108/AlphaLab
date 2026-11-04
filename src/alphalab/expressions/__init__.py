@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from alphalab.expressions.cache import CacheStats, ExpressionCache
 from alphalab.expressions.evaluator import evaluate
-from alphalab.expressions.grammar import Grammar, sample_expression
+from alphalab.expressions.grammar import Grammar, is_degenerate, sample_expression
 from alphalab.expressions.nodes import (
     Call,
     Constant,
@@ -32,6 +32,7 @@ __all__ = [
     "evaluate",
     "feature",
     "get_operator",
+    "is_degenerate",
     "parse",
     "sample_expression",
 ]

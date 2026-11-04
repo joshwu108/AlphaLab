@@ -39,6 +39,9 @@ class Grammar:
         max_depth: Maximum tree depth (a leaf has depth 1).
         max_size: Maximum number of nodes.
         max_lookback: Maximum required history in rows.
+        forbid_degenerate: Reject degenerate forms (see :func:`is_degenerate`).
+            Applies to every search method alike, so no method gains budget
+            by being the only one that skips them.
     """
 
     features: tuple[str, ...] = DEFAULT_FEATURES
@@ -48,6 +51,7 @@ class Grammar:
     max_depth: int = 5
     max_size: int = 15
     max_lookback: int = 60
+    forbid_degenerate: bool = True
     _specs: Mapping[str, OperatorSpec] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -105,6 +109,8 @@ class Grammar:
             if isinstance(sub, Feature) and sub.name not in self.features:
                 raise ExpressionTypeError(f"feature ${sub.name} is not in the grammar")
             if isinstance(sub, Call):
+                if self.forbid_degenerate and is_degenerate(sub):
+                    raise ExpressionTypeError(f"degenerate form {sub.canonical}")
                 if sub.op not in self._specs:
                     raise ExpressionTypeError(f"operator {sub.op} is not in the grammar")
                 if sub.window is not None and sub.window not in self.windows_for(sub.op):
@@ -117,6 +123,29 @@ class Grammar:
         except (ExpressionTypeError, ExpressionLimitError):
             return False
         return True
+
+
+# Binary operators whose result is still informative with identical operands.
+NON_DEGENERATE_SELF_BINARY = frozenset({"mul"})
+
+
+def is_degenerate(node: Call) -> bool:
+    """Whether ``node`` is a redundant or constant-valued form at its root.
+
+    * a non-windowed unary operator applied to its own result, such as
+      ``neg(neg(x))``, ``abs(abs(x))`` or ``cs_rank(cs_rank(x))`` (identity or
+      idempotent);
+    * a binary operator other than ``mul`` with identical operands, such as
+      ``sub(x, x)``, ``div(x, x)`` or ``ts_corr(x, x, w)`` (constant), or
+      ``add(x, x)`` (a rescaling of ``x``).
+    """
+    spec = node.spec
+    if spec.arity == 1 and not spec.takes_window:
+        child = node.args[0]
+        return isinstance(child, Call) and child.op == node.op
+    if spec.arity == 2:
+        return node.op not in NON_DEGENERATE_SELF_BINARY and node.args[0] == node.args[1]
+    return False
 
 
 def _sample_series(grammar: Grammar, rng: np.random.Generator, depth: int) -> Node:

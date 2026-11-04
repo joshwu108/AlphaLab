@@ -39,9 +39,9 @@ accumulate. Beyond these typing rules the **action mask** also requires that
   on the reductions still needed);
 * the grammar size and depth limits can still be met by the cheapest
   completion (lower bounds on final size and depth);
-* no degenerate forms: a unary operator is not applied twice in a row
-  (``neg(neg(x))``) and binary operators other than ``mul`` never take two
-  identical operands (``sub(x, x)``, ``ts_corr(x, x, w)``).
+* no degenerate forms as defined by
+  :func:`~alphalab.expressions.grammar.is_degenerate` (for example
+  ``neg(neg(x))`` or ``sub(x, x)``), the same rule every search method obeys.
 
 The bounds are necessary rather than sufficient conditions (for example, two
 identical operands can only be merged by ``mul``), so a rare state can have no
@@ -57,7 +57,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from alphalab.errors import ExpressionTypeError
-from alphalab.expressions.grammar import Grammar
+from alphalab.expressions.grammar import Grammar, is_degenerate
 from alphalab.expressions.nodes import Call, Constant, Feature, Node, ValueKind
 from alphalab.expressions.operators import OperatorSpec
 
@@ -221,13 +221,11 @@ class RPNBuilder:
         if not all(isinstance(o, Node) for o in operands):
             return None
         nodes = tuple(o for o in operands if isinstance(o, Node))
-        if spec.arity == 1 and isinstance(nodes[0], Call) and nodes[0].op == spec.name:
-            return None
-        if spec.arity == 2 and spec.name != "mul" and nodes[0] == nodes[1]:
-            return None
         try:
             node = Call(spec.name, nodes, window)
         except ExpressionTypeError:
+            return None
+        if self.grammar.forbid_degenerate and is_degenerate(node):
             return None
         return node if self._within_limits(node) else None
 

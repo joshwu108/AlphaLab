@@ -43,3 +43,31 @@ def test_grammar_rejects_operators_without_usable_windows() -> None:
 def test_grammar_serializes_to_plain_data() -> None:
     data = Grammar().to_dict()
     assert "_specs" not in data and data["max_depth"] == 5
+
+
+@pytest.mark.parametrize(
+    ("text", "degenerate"),
+    [
+        ("neg(neg($close))", True),
+        ("cs_rank(cs_rank($close))", True),
+        ("sub($close, $close)", True),
+        ("ts_corr($close, $close, 5)", True),
+        ("mul($close, $close)", False),
+        ("ts_mean(ts_mean($close, 5), 5)", False),
+        ("neg(abs($close))", False),
+    ],
+)
+def test_degenerate_forms_are_rejected_for_every_method(text: str, degenerate: bool) -> None:
+    grammar = Grammar()
+    assert grammar.is_valid(parse(text)) is not degenerate
+    assert Grammar(forbid_degenerate=False).is_valid(parse(text))
+
+
+def test_sampler_never_produces_degenerate_forms() -> None:
+    from alphalab.expressions import is_degenerate
+
+    rng = np.random.default_rng(5)
+    grammar = Grammar(max_depth=4, max_size=10)
+    for _ in range(300):
+        node = sample_expression(grammar, rng)
+        assert not any(isinstance(s, Call) and is_degenerate(s) for _, s in node.walk())
