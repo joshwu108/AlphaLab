@@ -42,6 +42,13 @@ class Grammar:
         forbid_degenerate: Reject degenerate forms (see :func:`is_degenerate`).
             Applies to every search method alike, so no method gains budget
             by being the only one that skips them.
+        constants_last: A constant may only be the *second* operand of a
+            non-commutative operator: ``sub(x, 1.0)`` is allowed,
+            ``sub(1.0, x)`` is not. The RL builder writes Reverse Polish
+            Notation and cannot place a constant first, so this keeps the
+            hypothesis space identical for all methods. Little is lost for
+            rank-based scoring: ``sub(c, x)`` ranks like ``neg(x)`` and
+            ``div(c, x)`` ranks like ``neg(x)`` wherever ``x`` keeps one sign.
     """
 
     features: tuple[str, ...] = DEFAULT_FEATURES
@@ -52,6 +59,7 @@ class Grammar:
     max_size: int = 15
     max_lookback: int = 60
     forbid_degenerate: bool = True
+    constants_last: bool = True
     _specs: Mapping[str, OperatorSpec] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -111,6 +119,12 @@ class Grammar:
             if isinstance(sub, Call):
                 if self.forbid_degenerate and is_degenerate(sub):
                     raise ExpressionTypeError(f"degenerate form {sub.canonical}")
+                if (
+                    self.constants_last
+                    and not sub.spec.commutative
+                    and isinstance(sub.args[0], Constant)
+                ):
+                    raise ExpressionTypeError(f"leading constant in {sub.canonical}")
                 if sub.op not in self._specs:
                     raise ExpressionTypeError(f"operator {sub.op} is not in the grammar")
                 if sub.window is not None and sub.window not in self.windows_for(sub.op):
@@ -155,8 +169,12 @@ def _sample_series(grammar: Grammar, rng: np.random.Generator, depth: int) -> No
         return Feature(grammar.features[rng.integers(len(grammar.features))])
     spec = grammar.spec(grammar.operators[rng.integers(len(grammar.operators))])
     args: list[Node] = []
+    # With constants_last the constant always goes in the final slot; otherwise
+    # either slot is equally likely.
+    any_slot = int(rng.integers(spec.arity))
+    slot_choice = spec.arity - 1 if grammar.constants_last and not spec.commutative else any_slot
     constant_slot = (
-        int(rng.integers(spec.arity))
+        slot_choice
         if spec.allows_constant and grammar.constants and rng.random() < CONSTANT_PROBABILITY
         else -1
     )

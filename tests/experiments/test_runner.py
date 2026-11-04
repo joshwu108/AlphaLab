@@ -31,7 +31,7 @@ def _config(method: str, **overrides: Any) -> Any:
         "budget": {"max_evaluations": 40},
         "selection": {"max_factors": 3, "candidates": 10},
         "gp": {"population_size": 12},
-        "rl": {"max_tokens": 10, "episodes_per_update": 8, "hidden_dim": 16, "embed_dim": 8},
+        "rl": {"max_tokens": 15, "episodes_per_update": 8, "hidden_dim": 16, "embed_dim": 8},
     }
     raw.update(overrides)
     return config_from_dict(raw)

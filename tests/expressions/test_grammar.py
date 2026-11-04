@@ -71,3 +71,10 @@ def test_sampler_never_produces_degenerate_forms() -> None:
     for _ in range(300):
         node = sample_expression(grammar, rng)
         assert not any(isinstance(s, Call) and is_degenerate(s) for _, s in node.walk())
+
+
+def test_leading_constants_are_rejected_unless_disabled() -> None:
+    assert not Grammar().is_valid(parse("sub(1.0, $close)"))
+    assert Grammar().is_valid(parse("sub($close, 1.0)"))
+    assert Grammar().is_valid(parse("add(1.0, $close)"))  # commutative: order is canonical
+    assert Grammar(constants_last=False).is_valid(parse("div(1.0, $close)"))

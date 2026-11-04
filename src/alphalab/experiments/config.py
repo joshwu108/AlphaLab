@@ -236,6 +236,15 @@ def config_from_dict(raw: Mapping[str, Any]) -> ExperimentConfig:
         raise ConfigError("[selection] max_abs_correlation must lie in (0, 1]")
     gp = _build(GPSettings, {"seed": seed, **_section(raw, "gp")}, "gp")
     rl = _build(RLSettings, {"seed": seed, **_section(raw, "rl")}, "rl")
+    # Every grammar-valid expression of size s needs at most 2s + 1 RPN tokens
+    # (s nodes, at most s windows, END). A shorter limit would let random search
+    # and GP explore expressions the RL agent cannot write.
+    needed_tokens = 2 * grammar.max_size + 1
+    if method == "rl" and rl.max_tokens < needed_tokens:
+        raise ConfigError(
+            f"[rl] max_tokens = {rl.max_tokens} cannot express every expression allowed by "
+            f"[grammar] max_size = {grammar.max_size}; use max_tokens >= {needed_tokens}"
+        )
     report = _build(ReportConfig, _section(raw, "report"), "report")
     return ExperimentConfig(
         name=name.strip(),

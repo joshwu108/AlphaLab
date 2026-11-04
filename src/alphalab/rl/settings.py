@@ -17,7 +17,9 @@ class RLSettings:
     """Hyperparameters of the policy-gradient search.
 
     Attributes:
-        max_tokens: Maximum RPN tokens per expression.
+        max_tokens: Maximum RPN tokens per expression. ``2 * max_size + 1``
+            covers every expression of the grammar (the default matches
+            ``Grammar.max_size = 15``).
         embed_dim: Token embedding width.
         hidden_dim: GRU hidden width.
         num_layers: GRU layers.
@@ -38,7 +40,7 @@ class RLSettings:
         top_k: Number of best records kept in the result.
     """
 
-    max_tokens: int = 20
+    max_tokens: int = 31
     embed_dim: int = 32
     hidden_dim: int = 64
     num_layers: int = 1

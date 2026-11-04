@@ -45,7 +45,7 @@ max_abs_correlation = 0.7
 candidates = 200
 
 [rl]
-max_tokens = 20
+max_tokens = 41
 episodes_per_update = 64
 hidden_dim = 128
 learning_rate = 0.0003

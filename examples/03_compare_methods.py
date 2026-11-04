@@ -26,7 +26,7 @@ BASE = {
     "budget": {"max_evaluations": 60},
     "selection": {"max_factors": 3, "candidates": 15},
     "gp": {"population_size": 16},
-    "rl": {"max_tokens": 10, "episodes_per_update": 8, "hidden_dim": 32},
+    "rl": {"max_tokens": 19, "episodes_per_update": 8, "hidden_dim": 32},
 }
 
 

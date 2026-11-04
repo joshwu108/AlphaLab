@@ -43,7 +43,7 @@ candidates = 30
 evaluate_test = false
 
 [rl]
-max_tokens = 12
+max_tokens = 21
 episodes_per_update = 16
 hidden_dim = 64
 learning_rate = 0.001

@@ -170,3 +170,18 @@ def test_scorers_track_state(strong_spec: SyntheticSpec) -> None:
     clone = PoolGainScorer(evaluator, capacity=3)
     clone.load_state(pool.state())
     assert clone.pool.expressions == pool.pool.expressions
+
+
+def test_every_sampled_expression_is_reachable_by_the_rl_builder() -> None:
+    """Random search and GP must not search a larger space than RL."""
+    from alphalab.expressions import sample_expression
+
+    grammar = Grammar(max_depth=4, max_size=10, max_lookback=30)
+    builder = RPNBuilder(grammar, max_tokens=2 * grammar.max_size + 1)
+    rng = np.random.default_rng(3)
+    for _ in range(300):
+        node = sample_expression(grammar, rng)
+        state = BuilderState()
+        for action in builder.encode(node):
+            state = builder.step(state, action)
+        assert builder.expression(state) == node

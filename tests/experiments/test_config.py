@@ -65,6 +65,7 @@ def test_hash_changes_with_any_setting() -> None:
         ({"rl": {"learning_rat": 0.1}}, r"\[rl\] unknown"),
         ({"evaluation": {"metric": "sharpe"}}, r"\[evaluation\] invalid"),
         ({"rl": {"reward_mode": "sharpe"}}, r"\[rl\] invalid"),
+        ({"method": "rl", "rl": {"max_tokens": 12}}, "cannot express"),
         ({"rl": {"learning_rate": -1.0}}, r"\[rl\] invalid"),
         ({"budget": {"max_evaluations": True}}, "max_evaluations"),
         ({"selection": {"max_abs_correlation": 0.0}}, "max_abs_correlation"),
