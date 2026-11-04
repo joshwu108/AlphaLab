@@ -67,3 +67,8 @@ coverage.xml
 .idea/
 .vscode/
 *.swp
+
+# Default experiment output directory and checkpoints
+runs/
+checkpoints/
+*.pt

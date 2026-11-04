@@ -1,0 +1,62 @@
+# TEMPLATE for the eventual research experiments. NOT EXECUTED.
+#
+# Replace the data path with a licensed daily-bar dataset in the AlphaLab data
+# contract (see README.rst), set the dates for your sample, then copy this file
+# once per method ("random", "gp", "rl") and per seed, keeping every other
+# section identical so the runs remain comparable.
+schema_version = 1
+name = "research-template"
+method = "rl"
+seed = 0
+
+[data]
+source = "file"
+path = "../data/daily_bars.parquet"
+
+[data.contract]
+duplicate_policy = "error"
+allow_missing_values = true
+
+[split]
+horizon = 5
+embargo = 5
+valid_start = "2019-01-01"
+test_start = "2021-01-01"
+min_rows = 120
+
+[grammar]
+max_depth = 6
+max_size = 20
+max_lookback = 60
+windows = [5, 10, 20, 40]
+
+[evaluation]
+metric = "rank_ic"
+complexity_penalty = 0.0005
+min_coverage = 0.6
+min_cross_section = 20
+
+[budget]
+max_evaluations = 20000
+
+[selection]
+max_factors = 10
+max_abs_correlation = 0.7
+candidates = 200
+
+[rl]
+max_tokens = 20
+episodes_per_update = 64
+hidden_dim = 128
+learning_rate = 0.0003
+reward_mode = "pool_gain"
+pool_capacity = 10
+device = "cuda"
+checkpoint_every = 20
+
+[gp]
+population_size = 200
+diversity_weight = 0.05
+
+[report]
+evaluate_test = false

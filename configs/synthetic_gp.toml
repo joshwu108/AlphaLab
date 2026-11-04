@@ -1,0 +1,49 @@
+# CPU smoke configuration on deterministic synthetic data with a planted
+# reversal factor. The three synthetic_*.toml files share data, split, grammar,
+# scoring and budget, so their runs are directly comparable.
+schema_version = 1
+name = "synthetic-gp"
+method = "gp"
+seed = 0
+
+[data]
+source = "synthetic"
+
+[data.synthetic]
+n_periods = 400
+n_instruments = 40
+seed = 11
+signal_strength = 0.3
+reversal_window = 5
+
+[split]
+horizon = 1
+embargo = 1
+train_fraction = 0.6
+valid_fraction = 0.2
+
+[grammar]
+max_depth = 4
+max_size = 10
+max_lookback = 40
+
+[evaluation]
+metric = "rank_ic"
+complexity_penalty = 0.001
+
+[budget]
+max_evaluations = 200
+
+[selection]
+max_factors = 5
+max_abs_correlation = 0.7
+candidates = 30
+
+[report]
+evaluate_test = false
+
+[gp]
+population_size = 40
+tournament_size = 3
+elitism = 2
+diversity_weight = 0.05
