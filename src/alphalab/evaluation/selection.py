@@ -91,10 +91,14 @@ class DiversityPenalty:
 
     def __call__(self, values: np.ndarray) -> float:
         """Penalty for a candidate with the given train values."""
+        return self.against(values, self.reference_provider())
+
+    def against(self, values: np.ndarray, references: Sequence[np.ndarray]) -> float:
+        """Penalty for ``values`` relative to an explicit reference set."""
         if self.weight == 0:
             return 0.0
         worst = 0.0
-        for reference in self.reference_provider():
+        for reference in references:
             corr = metrics.factor_correlation(values, reference)
             if math.isfinite(corr):
                 worst = max(worst, abs(corr))
