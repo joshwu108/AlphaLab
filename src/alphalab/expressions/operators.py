@@ -348,3 +348,8 @@ def get_operator(name: str) -> OperatorSpec:
         return OPERATORS[name]
     except KeyError:
         raise KeyError(f"unknown operator {name!r}; known: {sorted(OPERATORS)}") from None
+
+
+# Public aliases of kernels reused outside the expression engine.
+cross_sectional_zscore = _cs_zscore
+cross_sectional_rank = _cs_rank
