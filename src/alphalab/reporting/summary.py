@@ -164,6 +164,8 @@ def render_run_report(record: RunRecord, *, rst: bool = False) -> str:
         "",
         "Caveat: IC measures cross-sectional predictive association before costs; it is "
         "not a measure of realizable trading profit.",
+        "Validation metrics of the selected factors and of their combination are "
+        "selection-biased (validation chose them); only test metrics are unbiased.",
     ]
     if not summary["test_evaluated"]:
         lines.append("The test partition was not evaluated in this run.")

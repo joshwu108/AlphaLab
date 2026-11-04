@@ -18,7 +18,9 @@ Definitions
   is reported for diagnostics, not as a significance test.
 * **Turnover**: average one-way change of unit-gross long/short weights
   (cross-sectional z-scores scaled to ``sum |w| = 1``) between consecutive
-  sessions, in ``[0, 1]``.
+  sessions, in ``[0, 1]``. An instrument whose value becomes missing gets
+  weight 0, so entering or leaving coverage counts as trading; low-coverage
+  factors therefore show higher turnover.
 * **Rank autocorrelation**: mean rank correlation between ``factor[t]`` and
   ``factor[t - lag]``; high values mean a stable ordering.
 """

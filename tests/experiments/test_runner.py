@@ -117,6 +117,7 @@ def test_reports_and_comparisons(tmp_path: Path) -> None:
     assert summary["budget_used"] == 40 and summary["test_reads"] == 0
     text = render_run_report(records[1])
     assert "not a measure of realizable trading profit" in text
+    assert "selection-biased" in text
     assert "RST" not in render_run_report(records[1], rst=True)
     assert "Comparability: OK" in render_comparison(records)
     assert render_comparison(records, fmt="csv").startswith("run,")
