@@ -178,3 +178,21 @@ def test_settings_validation() -> None:
         RLSettings(episodes_per_update=0)
     with pytest.raises(ValueError):
         RecurrentPolicy(1)
+
+
+def test_resume_rewrites_metrics_logged_after_the_last_checkpoint(
+    strong_spec: SyntheticSpec, tmp_path: Path
+) -> None:
+    log = tmp_path / "metrics.jsonl"
+    limited = _settings(max_tokens=10, episodes_per_update=6, max_updates=2, checkpoint_every=1)
+    PolicyGradientTrainer(GRAMMAR, limited, checkpoint_dir=tmp_path, metrics_path=log).run(
+        build_evaluator(strong_spec, budget=60)
+    )
+    with log.open("a") as handle:  # an update logged after the checkpoint, then lost
+        handle.write(json.dumps({"update": 3, "orphan": True}) + "\n")
+    longer = _settings(max_tokens=10, episodes_per_update=6, max_updates=4, checkpoint_every=1)
+    PolicyGradientTrainer(GRAMMAR, longer, checkpoint_dir=tmp_path, metrics_path=log).run(
+        build_evaluator(strong_spec, budget=60), resume=True
+    )
+    updates = [json.loads(line)["update"] for line in log.read_text().splitlines()]
+    assert updates == [1, 2, 3, 4]

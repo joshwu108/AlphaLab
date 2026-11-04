@@ -383,6 +383,19 @@ class PolicyGradientTrainer:
         with self.metrics_path.open("a") as handle:
             handle.write(to_json_text(asdict(metrics)).replace("\n", "") + "\n")
 
+    def _rewrite_log(self, metrics: list[UpdateMetrics]) -> None:
+        """Replace the metrics file with the checkpointed history.
+
+        Updates logged after the last checkpoint of an interrupted run are
+        replayed on resume; rewriting prevents duplicate update numbers.
+        """
+        if self.metrics_path is None:
+            return
+        self.metrics_path.parent.mkdir(parents=True, exist_ok=True)
+        self.metrics_path.write_text(
+            "".join(to_json_text(asdict(m)).replace("\n", "") + "\n" for m in metrics)
+        )
+
     def run(self, evaluator: FactorEvaluator, *, resume: bool = False) -> SearchResult:
         """Train until the budget, ``max_updates`` or the stall guard stops the run."""
         if evaluator.budget is None:
@@ -390,6 +403,7 @@ class PolicyGradientTrainer:
         env, policy, optimizer, generator = self.build(evaluator)
         if resume:
             normalizer, history, progress = self._load(evaluator, env, policy, optimizer, generator)
+            self._rewrite_log(progress.metrics)
         else:
             normalizer, history, progress = RunningMeanStd(), SearchHistory(), _Progress()
         settings = self.settings
