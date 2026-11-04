@@ -79,3 +79,9 @@ def test_coverage() -> None:
     a = A.copy()
     a[:10] = np.nan
     assert metrics.coverage(a) == pytest.approx(0.75)
+
+
+def test_constant_rows_with_rounding_noise_have_undefined_correlation() -> None:
+    constant = np.full_like(A, 123456.789)
+    assert np.isnan(metrics.information_coefficient(constant, B)).all()
+    assert np.isnan(metrics.rank_information_coefficient(constant, B)).all()

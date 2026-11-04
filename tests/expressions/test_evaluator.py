@@ -156,3 +156,18 @@ def test_cache_evicts_least_recently_used_entries() -> None:
 def test_cached_and_uncached_results_are_identical() -> None:
     node = sample_expression(GRAMMAR, np.random.default_rng(99))
     np.testing.assert_array_equal(evaluate(node, PANEL), evaluate(node, PANEL, ExpressionCache()))
+
+
+def test_constant_inputs_have_exactly_zero_dispersion() -> None:
+    """A stale price must not produce a spurious ~1e-11 std that `div` turns into ~1e10."""
+    flat = np.full((30, 4), 123456.789)
+    flat[:, 1] = np.linspace(1.0, 2.0, 30)
+    panel = MarketPanel(PANEL.timestamps[:30], ("A", "B", "C", "D"), {"close": flat})
+    std = evaluate("ts_std($close, 10)", panel)
+    assert (std[9:, 0] == 0.0).all() and (std[9:, 1] > 0).all()
+    inverse = evaluate("div(1.0, ts_std($close, 10))", panel)
+    assert np.isnan(inverse[:, 0]).all()
+    assert np.isnan(evaluate("ts_corr($close, $close, 5)", panel)[:, 0]).all()
+    row = np.full((2, 4), 123456.789)
+    row_panel = MarketPanel(PANEL.timestamps[:2], ("A", "B", "C", "D"), {"close": row})
+    assert np.isnan(evaluate("cs_zscore($close)", row_panel)).all()

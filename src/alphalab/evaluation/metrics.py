@@ -31,7 +31,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 import pandas as pd
 
-from alphalab.expressions.operators import EPSILON
+from alphalab.expressions.operators import EPSILON, row_varies
 
 DEFAULT_MIN_CROSS_SECTION = 5  # Minimum valid instruments for a per-session correlation.
 
@@ -76,7 +76,10 @@ def rowwise_correlation(
     yc = np.where(mask, y - (y0.sum(axis=1) / safe_count)[:, None], 0.0)
     cov = (xc * yc).sum(axis=1)
     denom = np.sqrt((xc * xc).sum(axis=1) * (yc * yc).sum(axis=1))
-    ok = (count >= min_obs) & (denom > EPSILON)
+    varies = (
+        row_varies(np.where(mask, x, np.nan))[:, 0] & row_varies(np.where(mask, y, np.nan))[:, 0]
+    )
+    ok = (count >= min_obs) & varies & (denom > EPSILON)
     return np.where(ok, cov / np.where(ok, denom, 1.0), np.nan)
 
 

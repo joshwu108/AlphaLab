@@ -16,6 +16,12 @@ Semantics shared by all kernels
   never propagated.
 * Cross-sectional kernels operate within one row and need at least two finite
   values; otherwise the row is NaN.
+* **Zero dispersion is detected exactly.** A window or cross-section whose
+  values are all equal (for example a halted, stale price) has standard
+  deviation exactly 0 and undefined correlation/z-score (NaN). The test is
+  ``max == min`` rather than ``std < epsilon``: rounding in the mean of a large
+  constant such as 123456.789 leaves a spurious std near 1e-11, which an
+  absolute epsilon would accept and a later ``div`` would blow up.
 """
 
 from __future__ import annotations
@@ -40,6 +46,14 @@ def sanitize(values: np.ndarray) -> np.ndarray:
     if not np.isfinite(out).all():
         out = np.where(np.isfinite(out), out, np.nan)
     return out
+
+
+def row_varies(x: np.ndarray) -> np.ndarray:
+    """``(T, 1)`` mask: ``True`` where a row's finite values are not all equal."""
+    finite = np.isfinite(x)
+    high = np.where(finite, x, -np.inf).max(axis=1, keepdims=True)
+    low = np.where(finite, x, np.inf).min(axis=1, keepdims=True)
+    return high > low
 
 
 def _rolling(x: np.ndarray, window: int, reduce: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
@@ -72,8 +86,12 @@ def _ts_sum(x: np.ndarray, w: int) -> np.ndarray:
 
 def _ts_std(x: np.ndarray, w: int) -> np.ndarray:
     # Sample standard deviation (ddof=1), the convention of pandas and most
-    # factor libraries; requires w >= 2.
-    return _rolling(x, w, lambda v: v.std(axis=-1, ddof=1))
+    # factor libraries; requires w >= 2. Constant windows are exactly 0.
+    def reduce(v: np.ndarray) -> np.ndarray:
+        std = v.std(axis=-1, ddof=1)
+        return np.where(v.max(axis=-1) == v.min(axis=-1), 0.0, std)
+
+    return _rolling(x, w, reduce)
 
 
 def _ts_min(x: np.ndarray, w: int) -> np.ndarray:
@@ -99,11 +117,13 @@ def _ts_ema(x: np.ndarray, w: int) -> np.ndarray:
 def _ts_corr(x: np.ndarray, y: np.ndarray, w: int) -> np.ndarray:
     def reduce_pair(stacked: np.ndarray) -> np.ndarray:
         a, b = stacked[0], stacked[1]
+        varies = (a.max(axis=-1) > a.min(axis=-1)) & (b.max(axis=-1) > b.min(axis=-1))
         a = a - a.mean(axis=-1, keepdims=True)
         b = b - b.mean(axis=-1, keepdims=True)
         denom = np.sqrt((a * a).sum(axis=-1) * (b * b).sum(axis=-1))
         cov = (a * b).sum(axis=-1)
-        return np.where(denom > EPSILON, cov / np.where(denom > EPSILON, denom, 1.0), np.nan)
+        ok = varies & (denom > EPSILON)
+        return np.where(ok, cov / np.where(ok, denom, 1.0), np.nan)
 
     out = np.full(x.shape, np.nan)
     if w <= x.shape[0]:
@@ -129,7 +149,7 @@ def _cs_zscore(x: np.ndarray) -> np.ndarray:
     mean = filled.sum(axis=1, keepdims=True) / np.where(count > 0, count, 1.0)
     centered = np.where(finite, x - mean, 0.0)
     std = np.sqrt((centered**2).sum(axis=1, keepdims=True) / np.where(count > 0, count, 1.0))
-    ok = (count > 1) & (std > EPSILON)
+    ok = (count > 1) & row_varies(x) & (std > EPSILON)
     return np.where(ok & finite, (x - mean) / np.where(ok, std, 1.0), np.nan)
 
 
