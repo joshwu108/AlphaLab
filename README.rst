@@ -201,6 +201,18 @@ The unit of cost is one *unique* candidate, identified by canonical key, scored
 on the train partition. Repeating a candidate is free. Validation and test
 scoring are never charged.
 
+All methods search exactly the same hypothesis space:
+
+* The grammar rejects degenerate forms (``neg(neg(x))``, ``sub(x, x)``) for
+  every method.
+* It rejects leading constants in non-commutative operators (``sub(1.0, x)``),
+  which the RL token language cannot express.
+* RL configurations must allow ``2 * max_size + 1`` tokens, enough for any
+  grammar-valid expression.
+
+Every method stops when its budget is spent, or earlier if it stops proposing
+new candidates.
+
 * **Random search.** Samples grammar-valid expressions, deduplicates them, and
   stops when the budget is spent or the search space is exhausted.
 * **Genetic programming.**
@@ -279,6 +291,10 @@ Limitations
   overstate significance.
 * **RL algorithm.** The RL algorithm is plain REINFORCE with a baseline; PPO is
   not implemented yet.
+* **Expressiveness.** Constants may not lead non-commutative operators (for
+  example ``div(1.0, x)``). For rank-based scoring these forms are equivalent
+  to ``neg(x)`` where ``x`` keeps one sign. Set ``constants_last = false`` to
+  allow them in random search and GP only, at the cost of comparability.
 * **Synthetic data.** Synthetic data contains a single planted signal and is
   meant only for testing.
 
