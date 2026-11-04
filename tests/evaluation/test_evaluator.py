@@ -58,10 +58,16 @@ def test_budget_charges_unique_train_candidates_only(strong_spec: SyntheticSpec)
         evaluator.score("ts_max($high, 10)")
 
 
-def test_validation_score_computes_train_direction_first(strong_spec: SyntheticSpec) -> None:
-    evaluator = build_evaluator(strong_spec, budget=5)
-    evaluator.score("ts_std($close, 10)", "valid")
-    assert evaluator.budget is not None and evaluator.budget.used == 1
+def test_validation_scoring_never_charges_the_budget(strong_spec: SyntheticSpec) -> None:
+    evaluator = build_evaluator(strong_spec, budget=1)
+    assert evaluator.budget is not None
+    valid = evaluator.score(f"neg({strong_spec.planted_expression})", "valid")
+    assert valid.direction == -1 and evaluator.budget.used == 0
+    evaluator.score("ts_mean($close, 5)")
+    assert evaluator.budget.exhausted
+    evaluator.score("ts_std($close, 10)", "valid")  # still allowed with no budget left
+    with pytest.raises(BudgetExhaustedError):
+        evaluator.score("ts_std($close, 10)")  # a train request for it is charged
 
 
 def test_low_coverage_candidates_are_invalid() -> None:

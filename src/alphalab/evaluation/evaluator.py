@@ -203,8 +203,9 @@ class FactorEvaluator:
         """Score ``expression`` on ``partition``, memoized by canonical key.
 
         Train scores are charged to the budget (unique keys only). Validation
-        and test scores reuse the sign learned on train; the train score is
-        computed (and charged) first if it does not exist yet.
+        and test scores reuse the sign learned on train; if no train score
+        exists yet it is computed without charging, so validation and test
+        scoring never consume search budget.
 
         Raises:
             PartitionAccessError: ``partition`` is ``"test"`` and still locked.
@@ -216,8 +217,13 @@ class FactorEvaluator:
         memo_key = (node.key, partition)
         cached = self._scores.get(memo_key)
         if cached is not None:
-            if partition == REWARD_PARTITION and self.budget is not None:
-                self.budget.charge(node.key)
+            if (
+                partition == REWARD_PARTITION
+                and self.budget is not None
+                and self.budget.charge(node.key)
+                and not cached.valid
+            ):
+                self.budget.invalid_candidates += 1
             return cached
         if self.grammar is not None:
             self.grammar.check(node)
@@ -225,7 +231,13 @@ class FactorEvaluator:
         if partition == REWARD_PARTITION and self.budget is not None:
             charged = self.budget.charge(node.key)
         elif partition != REWARD_PARTITION and node.key not in self._directions:
-            self.score(node, REWARD_PARTITION)
+            # Orienting a validation/test score needs the train sign. Computing
+            # it here is deliberately not charged: only reward-partition
+            # requests from a search loop consume budget. A later train
+            # request for this key is charged through the memo path above.
+            train = self._compute(node, REWARD_PARTITION)
+            self._directions[node.key] = train.direction
+            self._scores[(node.key, REWARD_PARTITION)] = train
         result = self._compute(node, partition)
         if partition == REWARD_PARTITION:
             self._directions[node.key] = result.direction
